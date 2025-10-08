@@ -4,10 +4,7 @@ services:
     container_name: qemu
     environment:
       BOOT: "https://mirrors.hust.edu.cn/deepin-cd/25.0.1/amd64/deepin-desktop-community-25.0.1-amd64.iso"
-      DISK_SIZE: "32G"
-      RAM_SIZE: "8G"
-      CPU_CORES: "2"
-      
+      DISK_SIZE: "32G"     
     devices:
       - /dev/kvm
       - /dev/net/tun
