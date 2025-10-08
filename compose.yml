@@ -3,7 +3,11 @@ services:
     image: qemux/qemu
     container_name: qemu
     environment:
-      BOOT: "mint"
+      BOOT: "https://mirrors.hust.edu.cn/deepin-cd/25.0.1/amd64/deepin-desktop-community-25.0.1-amd64.iso"
+      DISK_SIZE: "32G"
+      RAM_SIZE: "8G"
+      CPU_CORES: "2"
+      
     devices:
       - /dev/kvm
       - /dev/net/tun
@@ -11,6 +15,7 @@ services:
       - NET_ADMIN
     ports:
       - 8006:8006
+      - 2222:22
     volumes:
       - ./qemu:/storage
     restart: always
