@@ -8,7 +8,7 @@ var webSocketFactory = {
 
         ws.addEventListener("open", e => {
             ws.close();
-            document.location.reload();
+            window.location.reload();
         });
 
         ws.addEventListener("error", e => {
@@ -35,10 +35,26 @@ function getInfo() {
         request.send();
 
     } catch (e) {
-        var err = "Error: " + e.message;
-        console.log(err);
-        setError(err);
+        setError("Error: " + e.message);
     }
+}
+
+function getURL() {
+
+    var protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    var path = window.location.pathname.replace(/[^/]*$/, '').replace(/\/$/, '');
+
+    return protocol + "//" + window.location.host + path;
+}
+
+function redirect() {
+
+    setInfo("Connecting to VNC", true);
+
+    var wsUrl = getURL() + "/websockify";
+    var webSocket = webSocketFactory.connect(wsUrl);
+
+    return true;
 }
 
 function processInfo() {
@@ -50,8 +66,7 @@ function processInfo() {
 
         var msg = request.responseText;
         if (msg == null || msg.length == 0) {
-            setError("Lost connection");
-            schedule();
+            window.location.reload();
             return false;
         }
 
@@ -68,27 +83,24 @@ function processInfo() {
         }
 
         if (notFound) {
-            setInfo("Connecting to VNC", true);
-
-            var protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-            var path = window.location.pathname.replace(/[^/]*$/, '').replace(/\/$/, '');
-            var wsUrl = protocol + "//" + window.location.host + path + "/websockify";
-            var webSocket = webSocketFactory.connect(wsUrl);
-
+            redirect();
             return true;
         }
 
         setError("Error: Received statuscode " + request.status);
-        schedule();
         return false;
 
     } catch (e) {
-        var err = "Error: " + e.message;
-        console.log(err);
-        setError(err);
+        setError("Error: " + e.message);
         return false;
     }
 }
+
+function extractContent(s) {
+    var span = document.createElement('span');
+    span.innerHTML = s;
+    return span.textContent || span.innerText;
+};
 
 function setInfo(msg, loading, error) {
     try {
@@ -97,26 +109,35 @@ function setInfo(msg, loading, error) {
             return false;
         }
 
-        var el = document.getElementById("spinner");
+        var el = document.getElementById("info");
+
+        if (el.innerText == msg || el.innerHTML == msg) {
+            return true;
+        }
+
+        var spin = document.getElementById("spinner");
 
         error = !!error;
         if (!error) {
-            el.style.visibility = 'visible';
+            spin.style.visibility = 'visible';
         } else {
-            el.style.visibility = 'hidden';
+            spin.style.visibility = 'hidden';
         }
 
+        var p = "<p class=\"loading\">";
         loading = !!loading;
         if (loading) {
-            msg = "<p class=\"loading\">" + msg + "</p>";
+            msg = p + msg + "</p>";
         }
 
-        el = document.getElementById("info");
-
-        if (el.innerHTML != msg) {
-            el.innerHTML = msg;
+        if (msg.includes(p)) {
+            if (el.innerHTML.includes(p)) {
+                el.getElementsByClassName('loading')[0].textContent = extractContent(msg);
+                return true;
+            }
         }
 
+        el.innerHTML = msg;
         return true;
 
     } catch (e) {
@@ -126,6 +147,7 @@ function setInfo(msg, loading, error) {
 }
 
 function setError(text) {
+    console.warn(text);
     return setInfo(text, false, true);
 }
 
@@ -133,4 +155,51 @@ function schedule() {
     setTimeout(getInfo, interval);
 }
 
+function connect() {
+
+    var wsUrl = getURL() + "/status";
+    var ws = new WebSocket(wsUrl);
+
+    ws.onmessage = function(e) {
+
+        var pos = e.data.indexOf(":");
+        var cmd = e.data.substring(0, pos);
+        var msg = e.data.substring(pos + 2);
+
+        switch (cmd) {
+            case "s":
+                setInfo(msg);
+                break;
+            case "c":
+                switch (msg) {
+                    case "vnc":
+                        redirect();
+                        break;
+                    default:
+                        console.warn("Unknown command: " + msg);
+                        break;
+                }
+                break;
+            case "e":
+                setError(msg);
+                break;
+            default:
+                console.warn("Unknown event: " + cmd);
+                break;
+        }
+    };
+
+    ws.onclose = function(e) {
+        setTimeout(function() {
+            connect();
+        }, interval);
+    };
+
+    ws.onerror = function(e) {
+        ws.close();
+        window.location.reload();
+    };
+}
+
 schedule();
+connect();
